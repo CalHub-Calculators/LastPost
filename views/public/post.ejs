@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('../partials/header') %>
+<body>
+      <%- include('../partials/main-nav') %>
+<div>
+     <!-- Back button -->
+        <button
+            type="button"
+            class="btn btn-dark px-3 py-2  text-white"
+            onclick="window.history.back()"
+            style="font-size: 0.9rem; margin: 20px;"
+        >
+            ← Back
+        </button>
+</div>
+<article class="container py-5">
+    <div class="row justify-content-center">
+        <!-- LEFT AD (desktop only) -->
+        <div class="col-lg-2 d-none d-lg-block">
+            <% if (post.adsterra_enabled && post.ad_left_code) { %>
+                <div class="sticky-top" style="top: 100px;">
+                    <%- post.ad_left_code %>
+                </div>
+            <% } %>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="col-lg-8">
+            <!-- Top ad -->
+            <% if (post.adsterra_enabled && post.ad_top_code) { %>
+                <div class="mb-4 text-center">
+                    <%- post.ad_top_code %>
+                </div>
+            <% } %>
+
+            <!-- Post Header -->
+            <header class="mb-5 text-center">
+                <span class="badge badge-category mb-3"><%= post.category_name %></span>
+                <h1 class="display-4 fw-bold mb-4"><%= post.title %></h1>
+                <p class="text-muted">
+                    By Editorial Team •
+                    <%= new Date(post.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) %>
+                </p>
+            </header>
+
+            <!-- Featured Image -->
+            <% if (post.image_url) { %>
+                <img src="<%= post.image_url %>" class="img-fluid rounded-4 shadow-lg mb-5 w-100" alt="">
+            <% } %>
+
+            <!-- Affiliate Banner -->
+            <% if (post.affiliate_enabled && post.affiliate_image_url && post.affiliate_link_url) { %>
+                <section class="mb-5">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge bg-warning text-dark text-uppercase small fw-bold">Affiliate</span>
+                        <small class="text-muted">We may earn a commission from qualifying purchases.</small>
+                    </div>
+                    <a href="<%= post.affiliate_link_url %>" target="_blank" rel="noopener noreferrer" class="d-block text-decoration-none">
+                        <div class="rounded-4 overflow-hidden shadow-sm">
+                            <img src="<%= post.affiliate_image_url %>" class="img-fluid w-100" style="max-height: 260px; object-fit: cover;" alt="Affiliate banner">
+                        </div>
+                    </a>
+                </section>
+            <% } %>
+
+            <!-- Main Content from Quill -->
+            <div class="content-area fs-5 leading-relaxed mb-5">
+                <%- post.content %>
+            </div>
+
+            <!-- Middle Ad -->
+            <% if (post.adsterra_enabled && post.ad_middle_code) { %>
+                <div class="mb-5 text-center">
+                    <%- post.ad_middle_code %>
+                </div>
+            <% } %>
+
+            <!-- Paid Promotion -->
+            <% if (post.promo_enabled && (post.promo_image_url || post.promo_video_url || post.promo_link_url)) { %>
+                <section class="mb-5 p-4 p-md-5 rounded-4 shadow-sm" style="background: #050816; color: #fff;">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+                        <h5 class="mb-0">Paid Promotion</h5>
+                        <% if (post.promo_link_url) { %>
+                            <a href="<%= post.promo_link_url %>" target="_blank" rel="noopener noreferrer"
+                               class="btn btn-light btn-sm fw-bold px-3">
+                                Learn more
+                            </a>
+                        <% } %>
+                    </div>
+
+                    <div class="row g-4 align-items-center">
+                        <% if (post.promo_image_url) { %>
+                            <div class="col-md-6">
+                                <img src="<%= post.promo_image_url %>" class="img-fluid rounded-3 mb-3 mb-md-0" alt="Promotion">
+                            </div>
+                        <% } %>
+
+                        <div class="col-md-6">
+                            <% if (post.promo_video_url) { %>
+                                <% if (post.promo_video_url.includes('youtube.com') || post.promo_video_url.includes('youtu.be')) { %>
+                                    <div class="ratio ratio-16x9 mb-3">
+                                        <iframe src="<%= post.promo_video_url %>" title="Promotional video"
+                                                allowfullscreen></iframe>
+                                    </div>
+                                <% } else { %>
+                                    <video src="<%= post.promo_video_url %>" controls class="w-100 rounded-3 mb-3"></video>
+                                <% } %>
+                            <% } %>
+
+                            <p class="small text-light-50 mb-0">
+                                This section is sponsored content. The links and media are provided by the partner brand.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            <% } %>
+        </div>
+
+        <!-- RIGHT AD (desktop only) -->
+        <div class="col-lg-2 d-none d-lg-block">
+            <% if (post.adsterra_enabled && post.ad_right_code) { %>
+                <div class="sticky-top" style="top: 100px;">
+                    <%- post.ad_right_code %>
+                </div>
+            <% } %>
+        </div>
+    </div>
+</article>
+
+<style>
+    .content-area { line-height: 1.8; color: #333; }
+    .content-area h2, .content-area h3 { margin-top: 2rem; font-weight: 700; }
+    .content-area img { max-width: 100%; border-radius: 12px; }
+    .content-area p { margin-bottom: 1.5rem; }
+</style>
+
+ <%- include('../partials/footer') %>
+</body>
+</html>

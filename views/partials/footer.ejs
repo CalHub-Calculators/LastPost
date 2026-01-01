@@ -1,0 +1,107 @@
+<!-- Subscribe Section -->
+<section class="py-5 bg-light border-top">
+  <div class="container">
+    <div class="row align-items-center g-4">
+      <div class="col-md-6">
+        <h4 class="fw-bold mb-2">Stay ahead with LastPost</h4>
+        <p class="text-muted mb-0">
+          Get an email whenever we publish a new premium developer story.
+        </p>
+      </div>
+      <div class="col-md-6">
+        <form class="d-flex flex-column flex-sm-row gap-2 justify-content-end" action="/subscribe" method="POST">
+          <input type="email" name="email" class="form-control bg-white border-0 shadow-sm"
+            placeholder="you@example.com" required>
+          <button type="submit" class="btn btn-dark px-4 fw-semibold">
+            Subscribe
+          </button>
+        </form>
+      </div>
+    </div>
+    <% if (typeof query !=='undefined' && query.subscribed) { %>
+      <div class="row mt-3">
+        <div class="col">
+          <div class="alert alert-success py-2 small mb-0">
+            Thanks for subscribing. You’ll get an email when new posts go live.
+          </div>
+        </div>
+      </div>
+      <% } %>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="border-top mt-0 pt-5 pb-3 bg-white">
+  <div class="container">
+    <div class="row gy-4">
+      <!-- Brand + Quote -->
+      <div class="col-md-4">
+        <!-- Logo (replace with <img> if you have a real logo file) -->
+        <a href="/" class="d-inline-flex align-items-center mb-3 text-decoration-none">
+          <!-- Example text-logo 
+          <span class="fw-bold fs-4 text-muted">LAST<span class="text-danger">POST</span></span>-->
+          <!-- Or use an image: -->
+          <img src="/icons/LastPost1.png" alt="LastPost" height="50">
+
+        </a>
+        <p class="text-muted small mb-2">
+          “LastPost is where developers publish their clearest thinking.”
+        </p>
+        <p class="text-muted small mb-0">
+          From the first draft to the final post that matters.
+        </p>
+
+      </div>
+
+      <!-- Company section -->
+      <div class="col-6 col-md-2">
+        <h6 class="text-dark fw-semibold mb-3 small text-uppercase">Company</h6>
+        <ul class="list-unstyled small mb-0">
+          <li class="mb-2">
+            <a href="/about" class="text-muted text-decoration-none">About Us</a>
+          </li>
+          <li class="mb-2">
+            <a href="/contact" class="text-muted text-decoration-none">Contact Us</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Legal / Policy section -->
+      <div class="col-6 col-md-3 col-lg-2">
+        <h6 class="text-dark fw-semibold mb-3 small text-uppercase">Legal</h6>
+        <ul class="list-unstyled small mb-0">
+          <li class="mb-2">
+            <a href="/privacy-policy" class="text-muted text-decoration-none">Privacy Policy</a>
+          </li>
+          <li class="mb-2">
+            <a href="/term-and-condition" class="text-muted text-decoration-none">Terms &amp; Condition's</a>
+          </li>
+          <li class="mb-2">
+            <a href="/disclaimer" class="text-muted text-decoration-none">Disclaimer</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Features section -->
+      <div class="col-6 col-md-3 col-lg-2">
+        <h6 class="text-dark fw-semibold mb-3 small text-uppercase">Feature's</h6>
+        <ul class="list-unstyled small mb-0">
+          <li class="mb-2">
+            <a href="/" class="text-muted text-decoration-none">Blog's</a>
+          </li>
+          <!-- Add more feature links if needed -->
+        </ul>
+      </div>
+    </div>
+
+    <!-- Bottom bar -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-4 pt-3 border-top">
+      <p class="text-muted small mb-2 mb-md-0">
+        &copy; <%= new Date().getFullYear() %> LastPost. Built for high-performance teams.
+      </p>
+      <p class="text-muted small mb-0">
+        Crafted For Latest Articles &amp; Posts.
+      </p>
+    </div>
+  </div>
+</footer>

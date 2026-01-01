@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/header') %>
+</head>
+<body class="bg-light">
+  <%- include('../partials/admin-nav') %>
+
+  <div class="container my-5">
+    <div class="mb-4">
+      <h2 class="fw-800 mb-1"><%= slide ? 'Edit hero slide' : 'New hero slide' %></h2>
+      <p class="text-muted mb-0">Configure image, text, and button link for the homepage hero.</p>
+    </div>
+
+    <form action="/developer/heroes/save" method="POST" class="card border-0 shadow-sm p-4" style="border-radius: 16px;">
+      <input type="hidden" name="id" value="<%= slide ? slide.id : '' %>">
+
+      <div class="mb-3">
+        <label class="form-label fw-bold text-muted">Background image URL</label>
+        <input
+          type="url"
+          name="image_url"
+          class="form-control"
+          value="<%= slide ? slide.image_url : '' %>"
+          placeholder="https://hero-image-url..."
+          required
+        >
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-bold text-muted">Title</label>
+        <input
+          type="text"
+          name="title"
+          class="form-control"
+          value="<%= slide ? slide.title : '' %>"
+          placeholder="LastPost Journal"
+          required
+        >
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-bold text-muted">Subtitle</label>
+        <textarea
+          name="subtitle"
+          rows="2"
+          class="form-control"
+          placeholder="Premium insights and stories from our expert developers."
+        ><%= slide ? slide.subtitle : '' %></textarea>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label class="form-label fw-bold text-muted">Button text (optional)</label>
+          <input
+            type="text"
+            name="button_text"
+            class="form-control"
+            value="<%= slide ? slide.button_text : '' %>"
+            placeholder="Read latest posts"
+          >
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold text-muted">Button link (optional)</label>
+          <input
+            type="url"
+            name="button_link"
+            class="form-control"
+            value="<%= slide ? slide.button_link : '' %>"
+            placeholder="https://..."
+          >
+        </div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <label class="form-label fw-bold text-muted">Sort order</label>
+          <input
+            type="number"
+            name="sort_order"
+            class="form-control"
+            value="<%= slide ? slide.sort_order : 0 %>"
+          >
+          <small class="text-muted">Lower appears first.</small>
+        </div>
+        <div class="col-md-4 d-flex align-items-center">
+          <div class="form-check form-switch mt-3">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="isActive"
+              name="is_active"
+              <%= !slide || slide.is_active ? 'checked' : '' %>
+            >
+            <label class="form-check-label" for="isActive">Active</label>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-dark px-4">Save hero slide</button>
+    </form>
+  </div>
+</body>
+</html>

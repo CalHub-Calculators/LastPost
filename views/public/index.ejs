@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('../partials/header') %>
+       <%- include('../partials/main-nav') %>
+<body>
+
+   <!-- Hero Section with Slider -->
+<header class="hero-section p-0">
+  <% if (heroSlides && heroSlides.length > 0) { %>
+    <div id="heroCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="2000">
+      <div class="carousel-inner">
+        <% heroSlides.forEach((slide, idx) => { %>
+          <div class="carousel-item <%= idx === 0 ? 'active' : '' %>">
+            <div class="position-relative" style="min-height: 320px;">
+              <div
+                class="w-100 h-100"
+                style="
+                  background-image: url('<%= slide.image_url %>');
+                  background-size: cover;
+                  background-position: center;
+                  filter: brightness(0.6);
+                  position: absolute;
+                  inset: 0;
+                ">
+              </div>
+              <div class="container text-center position-relative" style="padding: 100px 0 80px 0;">
+                <div class="row justify-content-center">
+                  <div class="col-lg-8 text-white">
+                    <span class="badge badge-category mb-3 bg-light text-dark border-0">
+                      The LastPost
+                    </span>
+                    <h1 class="display-3 fw-800 mb-3"><%= slide.title %></h1>
+                    <p class="lead fs-4 mb-4"><%= slide.subtitle %></p>
+                    <% if (slide.button_text && slide.button_link) { %>
+                      <a href="<%= slide.button_link %>" class="btn btn-light btn-lg px-4 fw-semibold">
+                        <%= slide.button_text %>
+                      </a>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- Optional controls -->
+      <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Previous</span>
+      </button>
+      <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Next</span>
+      </button>
+    </div>
+  <% } else { %>
+    <!-- Fallback static hero -->
+    <div class="container text-center">
+      <div class="row justify-content-center">
+        <div class="col-lg-8">
+          <span class="badge badge-category mb-3">The LastPost</span>
+          <h1 class="display-3 fw-800 mb-4">LastPost Journal</h1>
+          <p class="lead text-muted fs-4 mb-5">Premium insights and stories from our expert developers.</p>
+        </div>
+      </div>
+    </div>
+  <% } %>
+</header>
+
+    <!-- Main Layout -->
+    <main class="container py-5">
+        <div class="row g-5">
+            <!-- LEFT SIDEBAR -->
+            <aside class="col-lg-4 order-lg-1 order-2">
+                <!-- Search -->
+                <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                    <div class="card-body">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Search</h6>
+                        <form method="get" action="/">
+                            <div class="input-group">
+                                <input
+                                    type="text"
+                                    name="q"
+                                    class="form-control border-0 bg-light"
+                                    placeholder="Search articles..."
+                                    value="<%= search %>"
+                                >
+                                <% if (categorySlug) { %>
+                                    <input type="hidden" name="category" value="<%= categorySlug %>">
+                                <% } %>
+                                <button class="btn btn-dark" type="submit">Go</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Categories -->
+                <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                    <div class="card-body">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Categories</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="/"
+                               class="badge-category px-3 py-2 text-decoration-none <%= !categorySlug ? 'bg-dark text-white' : '' %>">
+                                All
+                            </a>
+                            <% categories.forEach(cat => { %>
+                                <a href="/?category=<%= cat.slug %><%= search ? '&q=' + encodeURIComponent(search) : '' %>"
+                                   class="badge-category px-3 py-2 text-decoration-none <%= categorySlug === cat.slug ? 'bg-dark text-white' : '' %>">
+                                    <%= cat.name %>
+                                </a>
+                            <% }) %>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Latest Posts -->
+                <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                    <div class="card-body">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Latest posts</h6>
+                        <ul class="list-unstyled mb-0">
+                            <% latestPosts.forEach(lp => { %>
+                                <li class="d-flex mb-3">
+                                    <a href="/post/<%= lp.slug %>" class="me-3" style="width: 72px; height: 72px; border-radius: 12px; overflow: hidden; flex-shrink: 0;">
+                                        <img
+                                            src="<%= lp.image_url || 'https://via.placeholder.com/300x200' %>"
+                                            alt=""
+                                            style="width: 100%; height: 100%; object-fit: cover;"
+                                        >
+                                    </a>
+                                    <div>
+                                        <a href="/post/<%= lp.slug %>" class="d-block fw-semibold text-decoration-none text-dark small">
+                                            <%= lp.title %>
+                                        </a>
+                                        <small class="text-muted d-block">
+                                            <%= new Date(lp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %>
+                                        </small>
+                                    </div>
+                                </li>
+                            <% }) %>
+                        </ul>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- MAIN CONTENT -->
+            <section class="col-lg-8 order-lg-2 order-1">
+                <!-- If searching or filtering, show context -->
+                <% if (search || categorySlug) { %>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <% if (search) { %>
+                                <p class="mb-0 text-muted small">
+                                    Showing results for <strong>"<%= search %>"</strong>
+                                </p>
+                            <% } %>
+                            <% if (categorySlug) { %>
+                                <% const activeCat = categories.find(c => c.slug === categorySlug); %>
+                                <p class="mb-0 text-muted small">
+                                    Category:
+                                    <strong><%= activeCat ? activeCat.name : categorySlug %></strong>
+                                </p>
+                            <% } %>
+                        </div>
+                        <div>
+                            <% if (search || categorySlug) { %>
+                                <a href="/" class="small text-decoration-none text-muted">Clear filters</a>
+                            <% } %>
+                        </div>
+                    </div>
+                <% } %>
+
+                <!-- Posts Grid -->
+                <div class="row g-4">
+                    <% if (posts.length === 0) { %>
+                        <div class="col-12 text-center py-5 text-muted bg-light">
+                            No posts found. Try adjusting your search or filters.
+                        </div>
+                    <% } %>
+
+                    <% posts.forEach(post => { %>
+                        <div class="col-md-6">
+                            <article class="card h-100 bg-transparent border-0">
+                                <a href="/post/<%= post.slug %>">
+                                    <img
+                                        src="<%= post.image_url || 'https://via.placeholder.com/800x500' %>"
+                                        class="card-img-top shadow-sm"
+                                        style="height: 220px; object-fit: cover; border-radius: 16px;"
+                                        alt=""
+                                    >
+                                </a>
+                                <div class="card-body px-0 pt-3">
+                                    <div class="mb-2 d-flex align-items-center gap-2">
+                                        <span class="badge-category"><%= post.category_name %></span>
+                                        <small class="text-muted">
+                                            <%= new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %>
+                                        </small>
+                                    </div>
+                                    <a href="/post/<%= post.slug %>" class="post-title h5 d-block mb-2">
+                                        <%= post.title %>
+                                    </a>
+                                </div>
+                            </article>
+                        </div>
+                    <% }) %>
+                </div>
+
+                <!-- Pagination -->
+                <% if (totalPages > 1) { %>
+                    <nav class="mt-5">
+                        <ul class="pagination justify-content-center">
+                            <!-- Previous -->
+                            <li class="page-item <%= page <= 1 ? 'disabled' : '' %>">
+                                <a class="page-link"
+                                   href="<%= page > 1 ? '/?page=' + (page - 1) + (search ? '&q=' + encodeURIComponent(search) : '') + (categorySlug ? '&category=' + categorySlug : '') : '#' %>">
+                                    Previous
+                                </a>
+                            </li>
+
+                            <!-- Page numbers -->
+                            <% for (let p = 1; p <= totalPages; p++) { %>
+                                <li class="page-item <%= p === page ? 'active' : '' %>">
+                                    <a class="page-link"
+                                       href="/?page=<%= p %><%= search ? '&q=' + encodeURIComponent(search) : '' %><%= categorySlug ? '&category=' + categorySlug : '' %>">
+                                        <%= p %>
+                                    </a>
+                                </li>
+                            <% } %>
+
+                            <!-- Next -->
+                            <li class="page-item <%= page >= totalPages ? 'disabled' : '' %>">
+                                <a class="page-link"
+                                   href="<%= page < totalPages ? '/?page=' + (page + 1) + (search ? '&q=' + encodeURIComponent(search) : '') + (categorySlug ? '&category=' + categorySlug : '') : '#' %>">
+                                    Next
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                <% } %>
+            </section>
+        </div>
+    </main>
+
+      <%- include('../partials/footer') %>
+</body>
+</html>

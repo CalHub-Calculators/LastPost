@@ -1,0 +1,65 @@
+<nav class="navbar navbar-expand-lg navbar-light py-3 border-bottom bg-white sticky-top">
+    <div class="container">
+        <a class="navbar-brand" href="/"><img src="/icons/LastPost1.png" alt="LastPost" height="50"></a>
+        
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="mainNav">
+            <!-- Left: main links -->
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link <%= currentPath === '/' ? 'active' : '' %>" href="/">Home</a>
+                </li>
+
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle <%= currentPath.startsWith('/category') ? 'active' : '' %>"
+                       href="#" id="categoriesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Categories
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="categoriesDropdown">
+                        <% if (categories && categories.length) { %>
+                            <% categories.forEach(cat => { %>
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="/?category=<%= cat.slug %>"><%= cat.name %></a>
+                                </li>
+                            <% }) %>
+                        <% } else { %>
+                            <li><span class="dropdown-item text-muted small">No categories</span></li>
+                        <% } %>
+                    </ul>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link <%= currentPath === '/about' ? 'active' : '' %>" href="/about">About</a>
+                </li>
+
+                <li class="nav-item">
+                    <a class="nav-link <%= currentPath === '/contact' ? 'active' : '' %>" href="/contact">Contact</a>
+                </li>
+            </ul>
+
+            <!-- Right: search + developer access -->
+            <form class="d-flex me-3" action="/" method="get">
+                <input
+                    class="form-control form-control-sm bg-light border-0"
+                    type="search"
+                    name="q"
+                    placeholder="Search posts..."
+                    value="<%= typeof search !== 'undefined' ? search : '' %>" style="width: 300px; height:40px;">
+                <button class="btn btn-sm btn-outline-dark" type="submit" style="margin-left:10px;">Search</button>
+            </form>
+
+            <a href="/developer/login" class="text-muted text-decoration-none small fw-bold">
+                Developer
+            </a>
+        </div>
+    </div>
+</nav>
+
+<!-- Bootstrap JS (needed once, best in layout or at bottom of body) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

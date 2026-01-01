@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <%- include('../partials/header') %>
+        <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+
+        <style>
+            #editor {
+                height: 420px;
+                background: #fff;
+            }
+
+            .editor-container {
+                border-radius: 12px;
+                overflow: hidden;
+            }
+
+            .card-section-title {
+                font-size: 0.75rem;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+                color: #6c757d;
+                font-weight: 700;
+            }
+
+            .image-preview {
+                border-radius: 10px;
+                overflow: hidden;
+                border: 1px solid #e3e6ea;
+                background: #f8f9fa;
+                display: none;
+            }
+
+            .image-preview img {
+                width: 100%;
+                height: 160px;
+                object-fit: cover;
+            }
+
+            .side-card {
+                border-radius: 14px;
+            }
+
+            .badge-label {
+                font-size: 0.65rem;
+                font-weight: 700;
+                letter-spacing: .08em;
+                text-transform: uppercase;
+                color: #6c757d;
+            }
+        </style>
+</head>
+
+<body class="bg-light">
+    <%- include('../partials/admin-nav') %>
+
+        <div class="container my-5">
+            <form action="/developer/post/save" method="POST" id="postForm">
+                <input type="hidden" name="id" value="<%= post ? post.id : '' %>">
+                <input type="hidden" name="content" id="contentInput">
+
+                <div class="row g-4">
+                    <!-- MAIN EDITOR -->
+                    <div class="col-lg-8">
+                        <div class="card shadow-sm border-0 p-4 mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <span class="card-section-title">Post editor</span>
+                                    <h4 class="mt-1 mb-0 fw-bold">Compose article</h4>
+                                </div>
+                            </div>
+
+                            <label class="form-label fw-bold text-muted mt-3">Post Title</label>
+                            <input type="text" name="title" class="form-control form-control-lg mb-4 border-0 bg-light"
+                                value="<%= post ? post.title : '' %>" placeholder="Enter an engaging title..." required>
+
+                            <label class="form-label fw-bold text-muted">Content</label>
+                            <div id="toolbar" class="mb-2">
+                                <!-- Custom toolbar with undo / redo -->
+                                <span class="ql-formats">
+                                    <select class="ql-header">
+                                        <option selected></option>
+                                        <option value="1"></option>
+                                        <option value="2"></option>
+                                        <option value="3"></option>
+                                    </select>
+                                </span>
+                                <span class="ql-formats">
+                                    <button class="ql-bold"></button>
+                                    <button class="ql-italic"></button>
+                                    <button class="ql-underline"></button>
+                                </span>
+                                <span class="ql-formats">
+                                    <button class="ql-list" value="ordered"></button>
+                                    <button class="ql-list" value="bullet"></button>
+                                </span>
+                                <span class="ql-formats">
+                                    <button class="ql-link"></button>
+                                    <button class="ql-image"></button>
+                                    <button class="ql-code-block"></button>
+                                </span>
+                                <span class="ql-formats">
+                                    <button class="ql-undo">↺</button>
+                                    <button class="ql-redo">↻</button>
+                                </span>
+                            </div>
+
+                            <div id="editor"><%- post ? post.content : '' %></div>
+                        </div>
+                    </div>
+
+                    <!-- SIDEBAR SETTINGS -->
+                    <div class="col-lg-4">
+                        <!-- PUBLISH / CATEGORY / FEATURED IMAGE -->
+                        <div class="card side-card shadow-sm border-0 p-4 mb-4 sticky-top" style="top: 85px;">
+                            <div class="mb-4">
+                                <span class="badge-label d-block mb-1">General</span>
+                                <h6 class="mb-0">Post settings</h6>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-muted">Category</label>
+                                <select name="category_id" class="form-select border-0 bg-light">
+                                    <% categories.forEach(cat=> { %>
+                                        <option value="<%= cat.id %>" <%=post && post.category_id==cat.id ? 'selected'
+                                            : '' %>>
+                                            <%= cat.name %>
+                                        </option>
+                                        <% }) %>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-muted">Featured image URL</label>
+                                <input type="url" name="image_url" id="featuredImageInput"
+                                    class="form-control border-0 bg-light" value="<%= post ? post.image_url : '' %>"
+                                    placeholder="https://your-image-url...">
+                                <div id="featuredPreview" class="image-preview mt-2">
+                                    <img id="featuredPreviewImg" src="#" alt="Featured preview">
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-dark w-100 py-3 fw-bold shadow-sm mt-2">
+                                Publish / Update Post
+                            </button>
+                        </div>
+
+                        <!-- AFFILIATE SECTION -->
+                        <!-- AFFILIATE SECTION -->
+                        <div class="card side-card shadow-sm border-0 p-4 mb-4">
+                            <div class="mb-3">
+                                <span class="badge-label d-block mb-1">Monetization</span>
+                                <h6 class="mb-0">Affiliate banner</h6>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="affiliateEnabled"
+                                    name="affiliate_enabled" <%=!post || post.affiliate_enabled ? 'checked' : '' %>
+                                >
+                                <label class="form-check-label small" for="affiliateEnabled">
+                                    Enable affiliate banner on this post
+                                </label>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-muted">Affiliate image URL</label>
+                                <input type="url" name="affiliate_image_url" id="affiliateImageInput"
+                                    class="form-control border-0 bg-light"
+                                    value="<%= post ? post.affiliate_image_url : '' %>"
+                                    placeholder="https://banner-image-url...">
+                                <div id="affiliatePreview" class="image-preview mt-2">
+                                    <img id="affiliatePreviewImg" src="#" alt="Affiliate banner preview">
+                                </div>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-muted">Affiliate link (button / banner)</label>
+                                <input type="url" name="affiliate_link_url" class="form-control border-0 bg-light"
+                                    value="<%= post ? post.affiliate_link_url : '' %>"
+                                    placeholder="https://affiliate-link...">
+                            </div>
+
+                            <p class="small text-muted mb-0">
+                                This banner can be rendered on the post page with a "Shop Now" or "Get Deal" button that
+                                opens this link.
+                            </p>
+                        </div>
+
+                        <!-- PAID PROMOTION SECTION -->
+                        <!-- PAID PROMOTION SECTION -->
+                        <div class="card side-card shadow-sm border-0 p-4 mb-4">
+                            <div class="mb-3">
+                                <span class="badge-label d-block mb-1">Paid promotion</span>
+                                <h6 class="mb-0">Sponsored block</h6>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="promoEnabled" name="promo_enabled"
+                                    <%=!post || post.promo_enabled ? 'checked' : '' %>
+                                >
+                                <label class="form-check-label small" for="promoEnabled">
+                                    Enable paid promotion section on this post
+                                </label>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-muted">Promo image URL</label>
+                                <input type="url" name="promo_image_url" id="promoImageInput"
+                                    class="form-control border-0 bg-light"
+                                    value="<%= post ? post.promo_image_url : '' %>"
+                                    placeholder="https://promo-image-url...">
+                                <div id="promoPreview" class="image-preview mt-2">
+                                    <img id="promoPreviewImg" src="#" alt="Promo image preview">
+                                </div>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-muted">Promo video URL (YouTube / MP4)</label>
+                                <input type="url" name="promo_video_url" class="form-control border-0 bg-light"
+                                    value="<%= post ? post.promo_video_url : '' %>"
+                                    placeholder="https://youtube.com/... or https://video-url...">
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-muted">Promo button link</label>
+                                <input type="url" name="promo_link_url" class="form-control border-0 bg-light"
+                                    value="<%= post ? post.promo_link_url : '' %>"
+                                    placeholder="https://landing-page...">
+                            </div>
+
+                            <p class="small text-muted mb-0">
+                                On the public page, you can render a “Paid Promotion” section with this media and a
+                                call‑to‑action button.
+                            </p>
+                        </div>
+
+                        <!-- ADSTERRA ADS SECTION -->
+                        <div class="card side-card shadow-sm border-0 p-4">
+                            <div class="mb-3">
+                                <span class="badge-label d-block mb-1">Ads</span>
+                                <h6 class="mb-0">Adsterra placements</h6>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="adsterraEnabled"
+                                    name="adsterra_enabled" <%=post && post.adsterra_enabled ? 'checked' : '' %>
+                                >
+                                <label class="form-check-label small" for="adsterraEnabled">
+                                    Enable Adsterra ads on this post
+                                </label>
+                            </div>
+
+                            <p class="small text-muted">
+                                Paste Adsterra code snippets exactly as provided. They will be injected into the post
+                                layout.
+                            </p>
+
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-muted">Top banner code</label>
+                                <textarea name="ad_top_code" class="form-control border-0 bg-light" rows="3"
+                                    placeholder="&lt;script&gt;...&lt;/script&gt;"><%= post ? post.ad_top_code : '' %></textarea>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-muted">Middle (in-content) code</label>
+                                <textarea name="ad_middle_code" class="form-control border-0 bg-light" rows="3"
+                                    placeholder="&lt;script&gt;...&lt;/script&gt;"><%= post ? post.ad_middle_code : '' %></textarea>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-muted">Left sidebar code (desktop)</label>
+                                <textarea name="ad_left_code" class="form-control border-0 bg-light" rows="3"
+                                    placeholder="&lt;script&gt;...&lt;/script&gt;"><%= post ? post.ad_left_code : '' %></textarea>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-muted">Right sidebar code (desktop)</label>
+                                <textarea name="ad_right_code" class="form-control border-0 bg-light" rows="3"
+                                    placeholder="&lt;script&gt;...&lt;/script&gt;"><%= post ? post.ad_right_code : '' %></textarea>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </form>
+        </div>
+        <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/quill-image-resize-module@3.0.0/image-resize.min.js"></script>
+
+        <script>
+            // Safely register the image resize module (won't break if CDN/global name changes)
+            try {
+                const ImageResizeModule = window.ImageResize && (window.ImageResize.default || window.ImageResize);
+                if (ImageResizeModule) {
+                    Quill.register('modules/imageResize', ImageResizeModule);
+                }
+            } catch (e) {
+                console.error('ImageResize registration failed:', e);
+            }
+
+            const quill = new Quill('#editor', {
+                theme: 'snow',
+                modules: {
+                    toolbar: '#toolbar',
+                    history: {
+                        delay: 1000,
+                        maxStack: 100,
+                        userOnly: true
+                    },
+                    imageResize: {} // will be ignored if not registered
+                }
+            });
+
+            // IMPORTANT: do NOT re-set quill.root.innerHTML here.
+            // You already render initial HTML in:
+            // <div id="editor"><%- post ? post.content : '' %></div>
+
+            // Custom undo / redo handlers
+            const toolbar = quill.getModule('toolbar');
+            toolbar.addHandler('undo', function () {
+                quill.history.undo();
+            });
+            toolbar.addHandler('redo', function () {
+                quill.history.redo();
+            });
+
+            document.querySelector('.ql-undo').setAttribute('title', 'Undo');
+            document.querySelector('.ql-redo').setAttribute('title', 'Redo');
+
+            // Submit: serialize HTML from Quill into hidden input
+            document.getElementById('postForm').addEventListener('submit', function () {
+                document.getElementById('contentInput').value = quill.root.innerHTML;
+            });
+
+            // Image preview helpers (featured / affiliate / promo) – keep as you had
+            function bindImagePreview(inputId, wrapperId, imgId) {
+                const input = document.getElementById(inputId);
+                const wrapper = document.getElementById(wrapperId);
+                const img = document.getElementById(imgId);
+
+                if (!input || !wrapper || !img) return;
+
+                const update = () => {
+                    const url = input.value.trim();
+                    if (url) {
+                        img.src = url;
+                        wrapper.style.display = 'block';
+                    } else {
+                        wrapper.style.display = 'none';
+                    }
+                };
+
+                input.addEventListener('input', update);
+                update(); // initial
+            }
+
+            bindImagePreview('featuredImageInput', 'featuredPreview', 'featuredPreviewImg');
+            bindImagePreview('affiliateImageInput', 'affiliatePreview', 'affiliatePreviewImg');
+            bindImagePreview('promoImageInput', 'promoPreview', 'promoPreviewImg');
+        </script>
+
+         <%- include('../partials/footer') %>
+</body>
+</html>

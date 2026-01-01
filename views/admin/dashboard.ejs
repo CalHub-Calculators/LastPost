@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <%- include('../partials/header') %>
+    <style>
+        .stats-card { background: #fff; border-radius: 15px; padding: 20px; border: 1px solid #eee; }
+        .table { background: #fff; border-radius: 15px; overflow: hidden; }
+        .post-img-sm { width: 50px; height: 50px; object-fit: cover; border-radius: 8px; }
+        .btn-action { padding: 5px 15px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
+        .badge-views { background: #e7f1ff; color: #0d6efd; font-size: 0.7rem; border-radius: 999px; padding: 4px 10px; }
+    </style>
+</head>
+<body class="bg-light">
+    <%- include('../partials/admin-nav') %>
+
+    <div class="container my-5">
+        <!-- Header row: title + search + new post -->
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+            <div>
+                <h2 class="fw-800 mb-1 fw-bold">Developer Dashboard</h2>
+                <p class="text-muted mb-0">Manage your premium journal content and performance.</p>
+            </div>
+            <div class="d-flex gap-2">
+                <form class="d-flex" action="/developer" method="get">
+                    <input
+                        type="text"
+                        name="q"
+                        class="form-control form-control-sm bg-white border"
+                        placeholder="Search posts..."
+                        value="<%= search || '' %>"
+                    >
+                    <button class="btn btn-sm btn-outline-dark ms-2 fw-bold" type="submit">Search</button>
+                </form>
+                <a href="/developer/post/new" class="btn btn-dark px-4 py-2 fw-bold" style="border-radius: 10px;">
+                    + Write New Post
+                </a>
+            </div>
+        </div>
+
+        <!-- Analytics cards + chart -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="stats-card shadow-sm">
+                    <div class="text-muted small mb-1">Total posts</div>
+                    <div class="h4 mb-0"><%= stats.totalPosts %></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card shadow-sm">
+                    <div class="text-muted small mb-1">Total views</div>
+                    <div class="h4 mb-0"><%= stats.totalViews %></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="stats-card shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="text-muted small">Top posts by views</div>
+                        <small class="text-muted" id="analytics-updated-label">Live</small>
+                    </div>
+                    <canvas id="viewsChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Posts Table -->
+        <div class="card border-0 shadow-sm" style="border-radius: 15px;">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-white">
+                        <tr>
+                            <th class="ps-4 py-3 text-muted small">POST</th>
+                            <th class="py-3 text-muted small">CATEGORY</th>
+                            <th class="py-3 text-muted small text-center">VIEWS</th>
+                            <th class="py-3 text-muted small">DATE</th>
+                            <th class="py-3 text-end pe-4 text-muted small">ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% posts.forEach(post => { %>
+                        <tr>
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center">
+                                    <img src="<%= post.image_url || 'https://via.placeholder.com/80x80' %>" class="post-img-sm me-3" alt="">
+                                    <div>
+                                        <div class="fw-bold mb-1"><%= post.title %></div>
+                                        <small class="text-muted d-block">/post/<%= post.slug %></small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge badge-category" style="font-size: 0.65rem;"><%= post.category_name %></span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge-views" title="Total visits"><%= post.views_count || 0 %></span>
+                            </td>
+                            <td class="text-muted small">
+                                <%= new Date(post.created_at).toLocaleDateString() %>
+                            </td>
+                            <td class="text-end pe-4">
+                                <a href="/developer/post/new?id=<%= post.id %>" class="btn btn-outline-primary btn-action me-2">Edit</a>
+                                <a href="/developer/post/delete/<%= post.id %>" class="btn btn-outline-danger btn-action" onclick="return confirm('Delete this post forever?')">Delete</a>
+                            </td>
+                        </tr>
+                        <% }) %>
+                        <% if(posts.length === 0) { %>
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">No posts found. Start writing!</td>
+                            </tr>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        let viewsChart = null;
+
+        async function loadAnalytics() {
+            try {
+                const res = await fetch('/developer/analytics/data');
+                const data = await res.json();
+
+                const labels = data.topPosts.map(p => p.title.length > 18 ? p.title.slice(0, 18) + '…' : p.title);
+                const values = data.topPosts.map(p => p.views_count);
+
+                const ctx = document.getElementById('viewsChart').getContext('2d');
+
+                if (!viewsChart) {
+                    viewsChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels,
+                            datasets: [{
+                                label: 'Views',
+                                data: values,
+                                backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                                borderRadius: 8
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const post = data.topPosts[context.dataIndex];
+                                            return `${post.title}: ${post.views_count} visits`;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                            }
+                        }
+                    });
+                } else {
+                    viewsChart.data.labels = labels;
+                    viewsChart.data.datasets[0].data = values;
+                    viewsChart.update();
+                }
+
+                document.getElementById('analytics-updated-label').textContent =
+                    'Updated ' + new Date().toLocaleTimeString();
+            } catch (e) {
+                console.error('Analytics fetch failed:', e);
+            }
+        }
+
+        // Initial load and auto-refresh every 10s
+        loadAnalytics();
+        setInterval(loadAnalytics, 10000);
+    </script>
+
+     <%- include('../partials/footer') %>
+</body>
+</html>
