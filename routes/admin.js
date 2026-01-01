@@ -9,14 +9,17 @@ const { sendNewPostEmail } = require('../lib/mailer');
 router.get('/login', (req, res) => res.render('auth/login'));
 
 // Login POST
-router.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-    if (user && user.password === password) {
-        req.session.userId = user.id;
-        return res.redirect('/developer');
-    }
-    res.redirect('/developer/login?error=1');
+const { User } = require('../lib/db');
+
+router.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  const user = await User.findOne({ username }).lean();
+  if (user && user.password === password) {
+    req.session.userId = user._id.toString();
+    return res.redirect('/developer');
+  }
+  res.redirect('/developer/login?error=1');
 });
 
 // Dashboard with search + analytics
