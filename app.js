@@ -8,8 +8,9 @@ const { Category, connectAndSeed } = require('./lib/db');
 const app = express();
 
 app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));   // ensure correct views path
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public'))); // safer for Vercel
 
 app.use(session({
   secret: 'firstpost-secret-key',
@@ -35,6 +36,12 @@ const adminRoutes = require('./routes/admin');
 
 app.use('/', publicRoutes);
 app.use('/developer', adminRoutes);
+
+// Error handler (so stack traces appear in Vercel logs)
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).send('Internal Server Error');
+});
 
 // --- Vercel handler wrapper: ensure Mongo is connected before handling requests ---
 let mongoReady = false;
