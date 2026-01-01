@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { connectAndSeed } = require('./lib/db');
-const app = require('./app'); // this is the exported handler
+const app = require('./api/app'); // this is the exported handler
 
 const PORT = process.env.PORT || 3000;
 
