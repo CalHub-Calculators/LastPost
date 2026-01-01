@@ -1,109 +1,121 @@
 // routes/public.js
 const express = require('express');
 const router = express.Router();
-const db = require('../lib/db');
+
+// Import Mongoose models from lib/db (your Mongo layer)
+const {
+  Post,
+  Category,
+  HeroSlide,
+  Subscriber,
+  Contact
+} = require('../lib/db');
 
 // Home page with search, category filter, pagination
-router.get('/', (req, res) => {
-  const page = parseInt(req.query.page, 10) || 1;
-  const perPage = 6;
-  const search = (req.query.q || '').trim();
-  const categorySlug = (req.query.category || '').trim() || null;
+router.get('/', async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const perPage = 6;
+    const search = (req.query.q || '').trim();
+    const categorySlug = (req.query.category || '').trim() || null;
 
-  const where = [];
-  const params = [];
+    const filter = {};
 
-  if (search) {
-    where.push('(posts.title LIKE ? OR posts.content LIKE ?)');
-    params.push(`%${search}%`, `%${search}%`);
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { content: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (categorySlug) {
+      const cat = await Category.findOne({ slug: categorySlug }).lean();
+      if (cat) {
+        filter.category = cat._id;
+      } else {
+        filter.category = null; // ensures no posts match
+      }
+    }
+
+    const totalPosts = await Post.countDocuments(filter);
+    const totalPages = Math.max(1, Math.ceil(totalPosts / perPage));
+
+    const [posts, latestPosts, categories, heroSlides] = await Promise.all([
+      Post.find(filter)
+        .populate('category')
+        .sort({ created_at: -1 })
+        .skip((page - 1) * perPage)
+        .limit(perPage)
+        .lean(),
+
+      Post.find({})
+        .populate('category')
+        .sort({ created_at: -1 })
+        .limit(5)
+        .lean(),
+
+      Category.find({}).sort({ name: 1 }).lean(),
+
+      HeroSlide.find({ is_active: true })
+        .sort({ sort_order: 1, created_at: -1 })
+        .lean()
+    ]);
+
+    res.render('public/index', {
+      posts: posts.map(p => ({
+        ...p,
+        category_name: p.category ? p.category.name : 'Uncategorized',
+        category_slug: p.category ? p.category.slug : ''
+      })),
+      latestPosts: latestPosts.map(p => ({
+        ...p,
+        category_name: p.category ? p.category.name : 'Uncategorized'
+      })),
+      categories,
+      page,
+      totalPages,
+      search,
+      categorySlug,
+      query: req.query,
+      heroSlides
+    });
+  } catch (err) {
+    next(err);
   }
-
-  if (categorySlug) {
-    where.push('categories.slug = ?');
-    params.push(categorySlug);
-  }
-
-  const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
-
-  const countRow = db.prepare(`
-    SELECT COUNT(*) AS count
-    FROM posts
-    JOIN categories ON posts.category_id = categories.id
-    ${whereClause}
-  `).get(...params);
-
-  const totalPosts = countRow.count;
-  const totalPages = Math.max(1, Math.ceil(totalPosts / perPage));
-  const offset = (page - 1) * perPage;
-
-  const posts = db.prepare(`
-    SELECT posts.*, categories.name AS category_name, categories.slug AS category_slug
-    FROM posts
-    JOIN categories ON posts.category_id = categories.id
-    ${whereClause}
-    ORDER BY posts.created_at DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, perPage, offset);
-
-  const latestPosts = db.prepare(`
-    SELECT posts.*, categories.name AS category_name
-    FROM posts
-    JOIN categories ON posts.category_id = categories.id
-    ORDER BY posts.created_at DESC
-    LIMIT 5
-  `).all();
-
-  const categories = db.prepare('SELECT * FROM categories ORDER BY name ASC').all();
-
-  const heroSlides = db.prepare(`
-  SELECT *
-  FROM hero_slides
-  WHERE is_active = 1
-  ORDER BY sort_order ASC, created_at DESC
-`).all();
-
-
- res.render('public/index', {
-  posts,
-  latestPosts,
-  categories,
-  page,
-  totalPages,
-  search,
-  categorySlug,
-  query: req.query,
-  heroSlides
-});
-
 });
 
 // Single Post Page
-router.get('/post/:slug', (req, res) => {
-  const post = db.prepare(`
-    SELECT posts.*, categories.name as category_name
-    FROM posts
-    JOIN categories ON posts.category_id = categories.id
-    WHERE posts.slug = ?
-  `).get(req.params.slug);
+router.get('/post/:slug', async (req, res, next) => {
+  try {
+    const post = await Post.findOne({ slug: req.params.slug })
+      .populate('category')
+      .lean();
 
-  if (!post) return res.status(404).send('Post not found');
+    if (!post) return res.status(404).send('Post not found');
 
-  // Increment views
-  db.prepare(`
-    UPDATE posts
-    SET views_count = COALESCE(views_count, 0) + 1
-    WHERE id = ?
-  `).run(post.id);
+    // Increment views
+    await Post.updateOne({ _id: post._id }, { $inc: { views_count: 1 } });
 
-  res.render('public/post', { post });
+    res.render('public/post', {
+      post: {
+        ...post,
+        category_name: post.category ? post.category.name : 'Uncategorized'
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // About page
 router.get('/about', (req, res) => {
-  res.render('public/about', { pageTitle: 'About | FirstPost Journal', query: req.query });
+  res.render('public/about', {
+    pageTitle: 'About | FirstPost Journal',
+    query: req.query
+  });
 });
 
-// Contact page
+// Contact page (GET)
 router.get('/contact', (req, res) => {
   res.render('public/contact', {
     pageTitle: 'Contact | FirstPost Journal',
@@ -111,62 +123,71 @@ router.get('/contact', (req, res) => {
   });
 });
 
-//Legal Pages
-
+// Legal pages
 router.get('/privacy-policy', (req, res) => {
-  res.render('public/privacy-policy', { pageTitle: 'privacy-policy', query: req.query });
+  res.render('public/privacy-policy', {
+    pageTitle: 'privacy-policy',
+    query: req.query
+  });
 });
 
 router.get('/term-and-condition', (req, res) => {
-  res.render('public/term-and-condition', { pageTitle: 'term-and-condition', query: req.query });
+  res.render('public/term-and-condition', {
+    pageTitle: 'term-and-condition',
+    query: req.query
+  });
 });
 
 router.get('/disclaimer', (req, res) => {
-  res.render('public/disclaimer', { pageTitle: 'disclaimer', query: req.query });
+  res.render('public/disclaimer', {
+    pageTitle: 'disclaimer',
+    query: req.query
+  });
 });
 
-
-router.post('/contact', (req, res) => {
-  const { name, email, message } = req.body;
-
-  if (!name || !email || !message) {
-    // basic fallback – just reload without saving
-    return res.redirect('/contact');
-  }
-
+// Contact form (POST) – save message in Mongo
+router.post('/contact', async (req, res, next) => {
   try {
-    db.prepare(`
-      INSERT INTO contacts (name, email, message)
-      VALUES (?, ?, ?)
-    `).run(name.trim(), email.trim(), message.trim());
+    const { name, email, message } = req.body;
+
+    if (!name || !email || !message) {
+      return res.redirect('/contact');
+    }
+
+    await Contact.create({
+      name: name.trim(),
+      email: email.trim(),
+      message: message.trim()
+    });
+
+    res.redirect('/contact?sent=1');
   } catch (e) {
     console.error('Contact save error:', e);
+    next(e);
   }
-
-  res.redirect('/contact?sent=1');
 });
 
-
-
 // Subscribe endpoint
-router.post('/subscribe', (req, res) => {
-  const email = (req.body.email || '').trim().toLowerCase();
-  if (!email) return res.redirect(req.get('referer') || '/');
-
+router.post('/subscribe', async (req, res, next) => {
   try {
-    const existing = db.prepare('SELECT * FROM subscribers WHERE email = ?').get(email);
+    const email = (req.body.email || '').trim().toLowerCase();
+    if (!email) return res.redirect(req.get('referer') || '/');
+
+    const existing = await Subscriber.findOne({ email });
     if (existing) {
-      db.prepare('UPDATE subscribers SET is_active = 1 WHERE email = ?').run(email);
+      existing.is_active = true;
+      await existing.save();
     } else {
-      db.prepare('INSERT INTO subscribers (email, is_active) VALUES (?, 1)').run(email);
+      await Subscriber.create({ email, is_active: true });
     }
+
+    const back = req.get('referer') || '/';
+    const sep = back.includes('?') ? '&' : '?';
+    res.redirect(back + sep + 'subscribed=1');
   } catch (e) {
     console.error('Subscribe error:', e);
+    next(e);
   }
-
-  const back = req.get('referer') || '/';
-  const sep = back.includes('?') ? '&' : '?';
-  res.redirect(back + sep + 'subscribed=1');
 });
 
 module.exports = router;

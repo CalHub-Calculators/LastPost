@@ -1,168 +1,162 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../lib/db');
+
+const { User, Post, Category, Subscriber, Contact, HeroSlide } = require('../lib/db');
 const { isAuthenticated } = require('../middleware/auth');
 const { sendNewPostEmail } = require('../lib/mailer');
-// ...
+
+/* ========== AUTH ========== */
 
 // Login GET
-router.get('/login', (req, res) => res.render('auth/login'));
+router.get('/login', (req, res) => {
+  res.render('auth/login', { error: req.query.error });
+});
 
 // Login POST
-const { User } = require('../lib/db');
-
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
-  const user = await User.findOne({ username }).lean();
-  if (user && user.password === password) {
-    req.session.userId = user._id.toString();
-    return res.redirect('/developer');
+  try {
+    const user = await User.findOne({ username }).lean();
+    if (user && user.password === password) {
+      req.session.userId = user._id.toString();
+      return res.redirect('/developer');
+    }
+    res.redirect('/developer/login?error=1');
+  } catch (err) {
+    console.error('Login error:', err);
+    res.redirect('/developer/login?error=1');
   }
-  res.redirect('/developer/login?error=1');
 });
 
-// Dashboard with search + analytics
-router.get('/', isAuthenticated, (req, res) => {
+// Logout
+router.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/developer/login');
+  });
+});
+
+/* ========== DASHBOARD ========== */
+
+router.get('/', isAuthenticated, async (req, res, next) => {
+  try {
     const search = (req.query.q || '').trim();
 
-    const where = [];
-    const params = [];
-
+    const filter = {};
     if (search) {
-        where.push('(posts.title LIKE ? OR posts.slug LIKE ?)');
-        params.push(`%${search}%`, `%${search}%`);
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { slug: { $regex: search, $options: 'i' } }
+      ];
     }
 
-    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const [posts, statsAgg, topPosts] = await Promise.all([
+      Post.find(filter)
+        .populate('category')
+        .sort({ created_at: -1 })
+        .lean(),
 
-    const posts = db.prepare(`
-        SELECT posts.*, categories.name AS category_name
-        FROM posts
-        JOIN categories ON posts.category_id = categories.id
-        ${whereClause}
-        ORDER BY posts.created_at DESC
-    `).all(...params);
+      Post.aggregate([
+        {
+          $group: {
+            _id: null,
+            total_posts: { $sum: 1 },
+            total_views: { $sum: '$views_count' }
+          }
+        }
+      ]),
 
-    const statsRow = db.prepare(`
-        SELECT
-            COUNT(*) AS total_posts,
-            COALESCE(SUM(views_count), 0) AS total_views
-        FROM posts
-    `).get();
+      Post.find({})
+        .sort({ views_count: -1, created_at: -1 })
+        .limit(10)
+        .lean()
+    ]);
 
-    const topPosts = db.prepare(`
-        SELECT id, title, slug, COALESCE(views_count, 0) AS views_count
-        FROM posts
-        ORDER BY views_count DESC, created_at DESC
-        LIMIT 10
-    `).all();
+    const statsDoc = statsAgg[0] || { total_posts: 0, total_views: 0 };
 
     res.render('admin/dashboard', {
-        posts,
-        stats: {
-            totalPosts: statsRow.total_posts,
-            totalViews: statsRow.total_views,
-            topPosts
-        },
-        search
+      posts: posts.map(p => ({
+        ...p,
+        id: p._id.toString(), // convenience for EJS
+        category_name: p.category ? p.category.name : 'Uncategorized'
+      })),
+      stats: {
+        totalPosts: statsDoc.total_posts || 0,
+        totalViews: statsDoc.total_views || 0,
+        topPosts: topPosts.map(p => ({
+          id: p._id.toString(),
+          title: p.title,
+          slug: p.slug,
+          views_count: p.views_count || 0
+        }))
+      },
+      search
     });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Analytics data for chart (AJAX)
-router.get('/analytics/data', isAuthenticated, (req, res) => {
-    const statsRow = db.prepare(`
-        SELECT
-            COUNT(*) AS total_posts,
-            COALESCE(SUM(views_count), 0) AS total_views
-        FROM posts
-    `).get();
+router.get('/analytics/data', isAuthenticated, async (req, res, next) => {
+  try {
+    const [statsAgg, topPosts] = await Promise.all([
+      Post.aggregate([
+        {
+          $group: {
+            _id: null,
+            total_posts: { $sum: 1 },
+            total_views: { $sum: '$views_count' }
+          }
+        }
+      ]),
+      Post.find({})
+        .sort({ views_count: -1, created_at: -1 })
+        .limit(10)
+        .lean()
+    ]);
 
-    const topPosts = db.prepare(`
-        SELECT id, title, slug, COALESCE(views_count, 0) AS views_count
-        FROM posts
-        ORDER BY views_count DESC, created_at DESC
-        LIMIT 10
-    `).all();
+    const statsDoc = statsAgg[0] || { total_posts: 0, total_views: 0 };
 
     res.json({
-        totalPosts: statsRow.total_posts,
-        totalViews: statsRow.total_views,
-        topPosts
+      totalPosts: statsDoc.total_posts || 0,
+      totalViews: statsDoc.total_views || 0,
+      topPosts: topPosts.map(p => ({
+        id: p._id.toString(),
+        title: p.title,
+        slug: p.slug,
+        views_count: p.views_count || 0
+      }))
     });
+  } catch (err) {
+    next(err);
+  }
 });
 
-// Create Post Page
-// Create / Edit Post Page
-router.get('/post/new', isAuthenticated, (req, res) => {
-    const categories = db.prepare('SELECT * FROM categories').all();
+/* ========== POSTS (CRUD) ========== */
 
+// New / Edit Post page
+router.get('/post/new', isAuthenticated, async (req, res, next) => {
+  try {
+    const categories = await Category.find({}).sort({ name: 1 }).lean();
     let post = null;
+
     if (req.query.id) {
-        post = db.prepare('SELECT * FROM posts WHERE id = ?').get(req.query.id);
+      post = await Post.findById(req.query.id).lean();
     }
 
     res.render('admin/editor', { post, categories });
-});
-
-router.get('/login', (req, res) => {
-    res.render('auth/login'); // Express looks in views/ + auth/login.ejs
-});
-
-router.get('/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/developer/login');
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Save Post
-router.post('/post/save', isAuthenticated, (req, res) => {
+router.post('/post/save', isAuthenticated, async (req, res, next) => {
+  try {
     const {
-        id,
-        title,
-        content,
-        category_id,
-        image_url,
-        affiliate_image_url,
-        affiliate_link_url,
-        promo_image_url,
-        promo_video_url,
-        promo_link_url,
-        affiliate_enabled,
-        promo_enabled,
-        adsterra_enabled,
-        ad_top_code,
-        ad_middle_code,
-        ad_left_code,
-        ad_right_code
-    } = req.body;
-
-    const slug = title.toLowerCase()
-        .trim()
-        .replace(/ /g, '-')
-        .replace(/[^\w-]+/g, '');
-
-    const affiliateEnabledVal = affiliate_enabled ? 1 : 0;
-    const promoEnabledVal = promo_enabled ? 1 : 0;
-    const adsterraEnabledVal = adsterra_enabled ? 1 : 0;
-
-    const isNew = !id;   // <-- flag
-    let savedPostId = id;
-
-  if (id) {
-    // UPDATE query here...
-  } else {
-    const result = db.prepare(`
-      INSERT INTO posts (
-        title, slug, content, category_id, image_url,
-        affiliate_image_url, affiliate_link_url,
-        promo_image_url, promo_video_url, promo_link_url,
-        affiliate_enabled, promo_enabled,
-        adsterra_enabled, ad_top_code, ad_middle_code, ad_left_code, ad_right_code
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+      id,
       title,
-      slug,
       content,
       category_id,
       image_url,
@@ -171,148 +165,269 @@ router.post('/post/save', isAuthenticated, (req, res) => {
       promo_image_url,
       promo_video_url,
       promo_link_url,
-      affiliateEnabledVal,
-      promoEnabledVal,
-      adsterraEnabledVal,
+      affiliate_enabled,
+      promo_enabled,
+      adsterra_enabled,
       ad_top_code,
       ad_middle_code,
       ad_left_code,
       ad_right_code
-    );
-    savedPostId = result.lastInsertRowid;
-  }
+    } = req.body;
 
-  // Send email notifications for new posts only
-  if (isNew) {
-    try {
-      const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(savedPostId);
-      const activeSubs = db.prepare('SELECT email FROM subscribers WHERE is_active = 1').all();
+    const slug = title
+      .toLowerCase()
+      .trim()
+      .replace(/ /g, '-')
+      .replace(/[^\w-]+/g, '');
 
-      for (const sub of activeSubs) {
-        // Fire and forget; in production you’d queue this
-        sendNewPostEmail({ to: sub.email, post }).catch(err =>
-          console.error('Email to', sub.email, 'failed:', err.message)
-        );
-      }
-    } catch (e) {
-      console.error('Sending subscriber emails failed:', e);
+    const data = {
+      title,
+      slug,
+      content,
+      image_url,
+      affiliate_image_url,
+      affiliate_link_url,
+      promo_image_url,
+      promo_video_url,
+      promo_link_url,
+      affiliate_enabled: !!affiliate_enabled,
+      promo_enabled: !!promo_enabled,
+      adsterra_enabled: !!adsterra_enabled,
+      ad_top_code,
+      ad_middle_code,
+      ad_left_code,
+      ad_right_code
+    };
+
+    if (category_id) data.category = category_id;
+
+    const isNew = !id;
+    let savedPost;
+
+    if (id) {
+      savedPost = await Post.findByIdAndUpdate(id, data, { new: true });
+    } else {
+      savedPost = await Post.create(data);
     }
-  }
 
-  res.redirect('/developer');
+    // send emails only for new posts
+    if (isNew && savedPost) {
+      try {
+        const subs = await Subscriber.find({ is_active: true }).lean();
+        for (const sub of subs) {
+          sendNewPostEmail({ to: sub.email, post: savedPost }).catch(err =>
+            console.error('Email send failed to', sub.email, ':', err.message)
+          );
+        }
+      } catch (e) {
+        console.error('Subscriber email loop failed:', e);
+      }
+    }
+
+    res.redirect('/developer');
+  } catch (err) {
+    next(err);
+  }
 });
 
-
-// Subscribers list / management
-router.get('/subscribers', isAuthenticated, (req, res) => {
-  const search = (req.query.q || '').trim();
-  const status = (req.query.status || '').trim(); // 'active', 'blocked', or ''
-
-  const where = [];
-  const params = [];
-
-  if (search) {
-    where.push('email LIKE ?');
-    params.push(`%${search}%`);
+// Delete Post
+router.get('/post/delete/:id', isAuthenticated, async (req, res, next) => {
+  try {
+    await Post.findByIdAndDelete(req.params.id);
+    res.redirect('/developer');
+  } catch (err) {
+    next(err);
   }
+});
 
-  if (status === 'active') {
-    where.push('is_active = 1');
-  } else if (status === 'blocked') {
-    where.push('is_active = 0');
+/* ========== SUBSCRIBERS ========== */
+
+router.get('/subscribers', isAuthenticated, async (req, res, next) => {
+  try {
+    const search = (req.query.q || '').trim();
+    const status = (req.query.status || '').trim(); // 'active', 'blocked', or ''
+
+    const filter = {};
+    if (search) {
+      filter.email = { $regex: search, $options: 'i' };
+    }
+    if (status === 'active') filter.is_active = true;
+    if (status === 'blocked') filter.is_active = false;
+
+    const [subs, statsAgg] = await Promise.all([
+      Subscriber.find(filter).sort({ created_at: -1 }).lean(),
+      Subscriber.aggregate([
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            active: { $sum: { $cond: [{ $eq: ['$is_active', true] }, 1, 0] } },
+            blocked: { $sum: { $cond: [{ $eq: ['$is_active', false] }, 1, 0] } }
+          }
+        }
+      ])
+    ]);
+
+    const statsDoc = statsAgg[0] || { total: 0, active: 0, blocked: 0 };
+
+    res.render('admin/subscribers', {
+      subscribers: subs.map(s => ({ ...s, id: s._id.toString() })),
+      stats: {
+        total: statsDoc.total || 0,
+        active: statsDoc.active || 0,
+        blocked: statsDoc.blocked || 0
+      },
+      search,
+      status
+    });
+  } catch (err) {
+    next(err);
   }
-
-  const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
-
-  const subs = db.prepare(`
-      SELECT *
-      FROM subscribers
-      ${whereClause}
-      ORDER BY created_at DESC
-  `).all(...params);
-
-  const stats = db.prepare(`
-      SELECT
-        COUNT(*) AS total,
-        SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active,
-        SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) AS blocked
-      FROM subscribers
-  `).get();
-
-  res.render('admin/subscribers', {
-    subscribers: subs,
-    stats,
-    search,
-    status
-  });
 });
 
 // Block / unblock subscriber
-router.post('/subscribers/toggle/:id', isAuthenticated, (req, res) => {
-  const id = req.params.id;
-  const sub = db.prepare('SELECT * FROM subscribers WHERE id = ?').get(id);
-  if (!sub) return res.redirect('/developer/subscribers');
+router.post('/subscribers/toggle/:id', isAuthenticated, async (req, res, next) => {
+  try {
+    const sub = await Subscriber.findById(req.params.id);
+    if (!sub) return res.redirect('/developer/subscribers');
 
-  const newStatus = sub.is_active ? 0 : 1;
-  db.prepare('UPDATE subscribers SET is_active = ? WHERE id = ?').run(newStatus, id);
+    sub.is_active = !sub.is_active;
+    await sub.save();
 
-  res.redirect('/developer/subscribers');
+    res.redirect('/developer/subscribers');
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Delete subscriber
-router.post('/subscribers/delete/:id', isAuthenticated, (req, res) => {
-  db.prepare('DELETE FROM subscribers WHERE id = ?').run(req.params.id);
-  res.redirect('/developer/subscribers');
-});
-
-// Contacts list / management
-router.get('/contacts', isAuthenticated, (req, res) => {
-  const search = (req.query.q || '').trim();
-
-  const where = [];
-  const params = [];
-
-  if (search) {
-    where.push('(name LIKE ? OR email LIKE ? OR message LIKE ?)');
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+router.post('/subscribers/delete/:id', isAuthenticated, async (req, res, next) => {
+  try {
+    await Subscriber.findByIdAndDelete(req.params.id);
+    res.redirect('/developer/subscribers');
+  } catch (err) {
+    next(err);
   }
-
-  const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
-
-  const contacts = db.prepare(`
-    SELECT *
-    FROM contacts
-    ${whereClause}
-    ORDER BY created_at DESC
-  `).all(...params);
-
-  const stats = db.prepare(`
-    SELECT COUNT(*) AS total
-    FROM contacts
-  `).get();
-
-  res.render('admin/contacts', {
-    contacts,
-    stats,
-    search
-  });
 });
 
-// Delete a contact
-router.post('/contacts/delete/:id', isAuthenticated, (req, res) => {
-  db.prepare('DELETE FROM contacts WHERE id = ?').run(req.params.id);
-  res.redirect('/developer/contacts');
+/* ========== CONTACTS ========== */
+
+router.get('/contacts', isAuthenticated, async (req, res, next) => {
+  try {
+    const search = (req.query.q || '').trim();
+
+    const filter = {};
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { message: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const [contacts, total] = await Promise.all([
+      Contact.find(filter).sort({ created_at: -1 }).lean(),
+      Contact.countDocuments()
+    ]);
+
+    res.render('admin/contacts', {
+      contacts: contacts.map(c => ({ ...c, id: c._id.toString() })),
+      stats: { total },
+      search
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
-
-
-// Delete Post
-router.get('/post/delete/:id', isAuthenticated, (req, res) => {
-    db.prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
-    res.redirect('/developer');
+router.post('/contacts/delete/:id', isAuthenticated, async (req, res, next) => {
+  try {
+    await Contact.findByIdAndDelete(req.params.id);
+    res.redirect('/developer/contacts');
+  } catch (err) {
+    next(err);
+  }
 });
 
+/* ========== HERO SLIDES ========== */
 
+router.get('/heroes', isAuthenticated, async (req, res, next) => {
+  try {
+    const slides = await HeroSlide.find({})
+      .sort({ sort_order: 1, created_at: -1 })
+      .lean();
+
+    res.render('admin/heroes', {
+      slides: slides.map(s => ({ ...s, id: s._id.toString() }))
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// New slide form
+router.get('/heroes/edit', isAuthenticated, (req, res) => {
+  const slide = null;
+  res.render('admin/hero_form', { slide });
+});
+
+// Edit slide form
+router.get('/heroes/edit/:id', isAuthenticated, async (req, res, next) => {
+  try {
+    const slide = await HeroSlide.findById(req.params.id).lean();
+    res.render('admin/hero_form', { slide });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Save slide
+router.post('/heroes/save', isAuthenticated, async (req, res, next) => {
+  try {
+    const {
+      id,
+      title,
+      subtitle,
+      image_url,
+      button_text,
+      button_link,
+      sort_order,
+      is_active
+    } = req.body;
+
+    const data = {
+      title,
+      subtitle,
+      image_url,
+      button_text,
+      button_link,
+      sort_order: sort_order ? Number(sort_order) : 0,
+      is_active: !!is_active
+    };
+
+    if (id) {
+      await HeroSlide.findByIdAndUpdate(id, data);
+    } else {
+      await HeroSlide.create(data);
+    }
+
+    res.redirect('/developer/heroes');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete slide
+router.post('/heroes/delete/:id', isAuthenticated, async (req, res, next) => {
+  try {
+    await HeroSlide.findByIdAndDelete(req.params.id);
+    res.redirect('/developer/heroes');
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ========== TEST EMAIL (optional) ========== */
 
 router.get('/test-email', isAuthenticated, async (req, res) => {
   try {
@@ -328,93 +443,6 @@ router.get('/test-email', isAuthenticated, async (req, res) => {
     console.error(e);
     res.status(500).send('Failed to send test email: ' + e.message);
   }
-});
-
-
-// List hero slides
-router.get('/heroes', isAuthenticated, (req, res) => {
-  const slides = db.prepare(`
-    SELECT *
-    FROM hero_slides
-    ORDER BY sort_order ASC, created_at DESC
-  `).all();
-
-  res.render('admin/heroes', { slides });
-});
-
-// New slide form
-router.get('/heroes/edit', isAuthenticated, (req, res) => {
-  const slide = null;
-  res.render('admin/hero_form', { slide });
-});
-
-// Edit slide form
-router.get('/heroes/edit/:id', isAuthenticated, (req, res) => {
-  const slide = db.prepare('SELECT * FROM hero_slides WHERE id = ?').get(req.params.id);
-  res.render('admin/hero_form', { slide });
-});
-
-// Save slide
-router.post('/heroes/save', isAuthenticated, (req, res) => {
-  const {
-    id,
-    title,
-    subtitle,
-    image_url,
-    button_text,
-    button_link,
-    sort_order,
-    is_active
-  } = req.body;
-
-  const activeVal = is_active ? 1 : 0;
-  const orderVal = sort_order ? Number(sort_order) : 0;
-
-  if (id) {
-    db.prepare(`
-      UPDATE hero_slides
-      SET
-        title = ?,
-        subtitle = ?,
-        image_url = ?,
-        button_text = ?,
-        button_link = ?,
-        sort_order = ?,
-        is_active = ?
-      WHERE id = ?
-    `).run(
-      title,
-      subtitle,
-      image_url,
-      button_text,
-      button_link,
-      orderVal,
-      activeVal,
-      id
-    );
-  } else {
-    db.prepare(`
-      INSERT INTO hero_slides
-        (title, subtitle, image_url, button_text, button_link, sort_order, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      title,
-      subtitle,
-      image_url,
-      button_text,
-      button_link,
-      orderVal,
-      activeVal
-    );
-  }
-
-  res.redirect('/developer/heroes');
-});
-
-// Delete slide
-router.post('/heroes/delete/:id', isAuthenticated, (req, res) => {
-  db.prepare('DELETE FROM hero_slides WHERE id = ?').run(req.params.id);
-  res.redirect('/developer/heroes');
 });
 
 module.exports = router;
