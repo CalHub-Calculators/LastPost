@@ -3,20 +3,21 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 
-const { connectAndSeed, Category } = require('./lib/db');
+const { Category, connectAndSeed } = require('./lib/db');
 
 const app = express();
 
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
+
 app.use(session({
   secret: 'firstpost-secret-key',
   resave: false,
   saveUninitialized: false
 }));
 
-// Make categories + currentPath available to views
+// Make categories + currentPath available
 app.use(async (req, res, next) => {
   try {
     const cats = await Category.find({}).sort({ name: 1 }).lean();
@@ -35,16 +36,21 @@ const adminRoutes = require('./routes/admin');
 app.use('/', publicRoutes);
 app.use('/developer', adminRoutes);
 
-const PORT = process.env.PORT || 3000;
-
-// Connect to Mongo then start server
-connectAndSeed()
+// --- Vercel handler wrapper: ensure Mongo is connected before handling requests ---
+let mongoReady = false;
+let mongoPromise = connectAndSeed()
   .then(() => {
-    app.listen(PORT, () => console.log(`LastPost running on http://localhost:${PORT}`));
+    console.log('Mongo ready');
+    mongoReady = true;
   })
   .catch(err => {
-    console.error('Failed to start app:', err);
-    process.exit(1);
+    console.error('Mongo connectAndSeed failed:', err);
   });
 
-module.exports = app;
+// For Vercel: export a function that waits for Mongo, then delegates to Express
+module.exports = async (req, res) => {
+  if (!mongoReady) {
+    await mongoPromise;
+  }
+  return app(req, res);
+};
