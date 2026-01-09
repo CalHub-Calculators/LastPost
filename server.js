@@ -1,4 +1,4 @@
-require('dotenv').config();
+/*require('dotenv').config();
 const { connectAndSeed } = require('./lib/db');
 const app = require('./api'); // this is the exported handler
 
@@ -17,8 +17,8 @@ const PORT = process.env.PORT || 3000;
     console.error('Failed to start app:', err);
     process.exit(1);
   }
-})();
-/*
+})();*/
+
 require('dotenv').config();
 const { connectAndSeed } = require('./lib/db');
 const app = require('./api/index'); // your express app export
@@ -38,4 +38,4 @@ module.exports = async (req, res) => {
     console.error('❌ Handler error:', err);
     res.status(500).json({ error: 'Server error' });
   }
-};*/
+};
