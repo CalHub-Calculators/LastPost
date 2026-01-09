@@ -3,7 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 
-const { Category, connectAndSeed } = require('./lib/db');
+const { Category, connectAndSeed } = require('../lib/db');
 
 const app = express();
 
@@ -31,8 +31,8 @@ app.use(async (req, res, next) => {
 });
 
 // Routes
-const publicRoutes = require('./routes/public');
-const adminRoutes = require('./routes/admin');
+const publicRoutes = require('../routes/public');
+const adminRoutes = require('../routes/admin');
 
 app.use('/', publicRoutes);
 app.use('/developer', adminRoutes);
